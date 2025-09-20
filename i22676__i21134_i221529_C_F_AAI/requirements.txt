@@ -1,0 +1,5 @@
+Flask>=2.0
+numpy
+pandas
+scikit-learn
+# add any other libs your model needs

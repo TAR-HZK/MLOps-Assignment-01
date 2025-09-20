@@ -1,0 +1,45 @@
+pipeline {
+  agent any
+
+  environment {
+    DOCKERHUB_CREDENTIALS = 'dockerhub-creds'   // Jenkins credential id; create this in Jenkins
+    DOCKER_IMAGE = "YOUR_DOCKERHUB_USERNAME/YOUR_REPO"
+    ADMIN_EMAIL = "admin@example.com"
+  }
+
+  stages {
+    stage('Checkout') {
+      steps { checkout scm }
+    }
+
+    stage('Build Docker Image') {
+      steps {
+        sh "docker build -t ${DOCKER_IMAGE}:${env.BUILD_NUMBER} ."
+        sh "docker tag ${DOCKER_IMAGE}:${env.BUILD_NUMBER} ${DOCKER_IMAGE}:latest"
+      }
+    }
+
+    stage('Push to Docker Hub') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: "${DOCKERHUB_CREDENTIALS}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+          sh 'echo "$DOCKER_PASS" | docker login --username "$DOCKER_USER" --password-stdin'
+          sh "docker push ${DOCKER_IMAGE}:${env.BUILD_NUMBER}"
+          sh "docker push ${DOCKER_IMAGE}:latest"
+        }
+      }
+    }
+  }
+
+  post {
+    success {
+      emailext subject: "Jenkins SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+               body: "Docker image ${DOCKER_IMAGE}:${env.BUILD_NUMBER} pushed successfully.",
+               to: "${ADMIN_EMAIL}"
+    }
+    failure {
+      emailext subject: "Jenkins FAILURE: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+               body: "Build failed. Check ${env.BUILD_URL}",
+               to: "${ADMIN_EMAIL}"
+    }
+  }
+}
